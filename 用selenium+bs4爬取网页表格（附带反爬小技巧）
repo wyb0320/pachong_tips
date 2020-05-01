@@ -1,0 +1,42 @@
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+from bs4 import BeautifulSoup as bs4
+import re
+
+def get_table(url):
+    # 1.获取源代码
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')#不弹窗
+    options.add_argument("–proxy-server=http://14.20.235.95:9797")# 更换ip，一定要注意，等号两边不能有空格
+    browser = webdriver.Chrome(options = options )
+    browser.get(url)
+    js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作（反爬），否则一些识别机器人的网站提取不到源代码
+    browser.execute_script(js)  
+    time.sleep(3)
+    data = browser.page_source
+    resou = bs4(data, 'lxml')
+    
+    # 2.开始提取表格
+    title = resou.title.text #获取表格名称，可以用于文件保存
+    title = re.sub('/','-',title)  #注意：文件保存时命名不能含有'/'等特殊符号，所以需要提前替换
+    num_h = len(resou.tbody.find_all('tr')) #计算表格的行数
+    table = resou.tbody.find_all('td') 
+    num_total =  len(table) # 表格中的总格子数
+    num_l = num_total//num_h #计算表格的列数    
+    lies = []
+    for i in range(num_l):
+        lie = table[i::num_l]
+        lies.append(lie)   #   lies[1][2].text # lies[列数][行数],此时的lies是各列的源代码
+
+
+    for i in range(len(lies)):
+        for j in range(len(lies[i])):
+            lies[i][j] = lies[i][j].text # 此时的lies就是各列的文本了
+            
+    df = DataFrame() #建立一个dataframe空表格
+    for i in range(len(lies)):
+        df[i] = lies[i]  # 按列将lies的各列加到空表格中
+        return df        # 返回表格，大功告成！！
