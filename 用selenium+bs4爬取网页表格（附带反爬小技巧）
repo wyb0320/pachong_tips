@@ -39,4 +39,4 @@ def get_table(url):
     df = DataFrame() #建立一个dataframe空表格
     for i in range(len(lies)):
         df[i] = lies[i]  # 按列将lies的各列加到空表格中
-        return df        # 返回表格，大功告成！！
+    return df        # 返回表格，大功告成！！
