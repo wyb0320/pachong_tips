@@ -1,0 +1,65 @@
+import requests
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+import re
+
+class Anyong:
+    def __init__(self):
+        self.url = 'https://www.ey.com/cn/zh/industries/automotive'
+        self.href_list = []
+        self.pdf_urls = []
+        self.count = 0
+        self.today = time.strftime('%Y-%m-%d')
+    def get_data(self):
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server=http://《ip》")# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+        browser.get(url)
+        js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+        browser.execute_script(js)  
+        time.sleep(3)
+
+        data = browser.page_source
+        self.data = data
+        
+    def get_pdf_urls(self): # 提取pdf的网址
+        data = self.data
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        data_tree
+        self.href_list = data_tree.xpath('//a/@href')
+        pdf_urls = []
+        for href in self.href_list:
+            if 'pdf'in href or 'PDF'in href:
+                pdf_urls.append(href)
+        pdf_urls = sorted(set(pdf_urls), key = pdf_urls.index) # 删除重复项
+        self.pdf_urls = pdf_urls
+        
+    def download_pdf(self):  
+        count = len(self.pdf_urls)
+        a = 1
+        while a <= count:
+            for pdfurl in self.pdf_urls:
+                a += 1
+                if 'http' in pdfurl: 
+                    import requests
+                    try:
+                        response = requests.get(pdfurl,stream="TRUE")
+                        with open('C:\\Users\\<username>\\Desktop\\anyong-'+self.today+'-'+str(a)+'.pdf','wb') as file:
+                            for data in response.iter_content():
+                                file.write(data)
+                        print('下载成功！')
+                    except:
+                        print('网页打不开，下载失败')
+        
+if __name__ == "__main__":
+    ay = Anyong()
+    ay.get_data()
+    ay.get_pdf_urls()
+    ay.download_pdf()
