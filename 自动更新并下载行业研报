@@ -1,0 +1,110 @@
+class Acc:
+    def __init__(self):
+        self.url = 'https://www.accenture.cn/cn-zh/industries/automotive-index'
+        self.title_list = []
+        self.href_list = []
+        self.empty = DataFrame(columns=['标题','链接','入库日期'])
+        self.count = 0
+        self.new_href = []
+        self.new_title = []
+        self.today = time.strftime('%Y-%m-%d')
+       
+    def build_db(self): # 创建数据库
+        
+        df = DataFrame(columns=['标题','链接','入库日期'])
+        df.to_csv('accenture.csv')
+        
+    def get_data(self): # 获取源代码
+    
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server=http://14.20.235.95:9797")# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+        browser.get(url)
+        js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+        browser.execute_script(js)  
+        time.sleep(3)
+
+        data = browser.page_source
+        self.data = data
+#         return self.data
+        # print(data)
+    def get_lists(self): # 提取标题、数据
+        data = self.data
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        data_tree
+        title_path = '//div[@class="insight-info"]/a/@aria-label'   
+        href_path = '//div[@class="insight-info"]/a/@href'  # 获取名字为href的属性，一般的网址都保存在属性中
+
+        self.href_list = data_tree.xpath(href_path)
+        self.title_list = data_tree.xpath(title_path)
+    
+    def insert_inform(self): # 更新数据库
+        import numpy as np
+        db = pd.read_csv('C:\\Users\\Bill\\Desktop\\accenture.csv') #读取数据库，此处可以修改为MySQL数据库
+        db_titles = list(db['标题'])
+        db_titles
+        for i in range(len(self.title_list)):
+            title = self.title_list[i]
+            href = 'https://www.accenture.cn'+self.href_list[i]
+            
+            if title not in db_titles:        # 只更新数据库中没有的数据
+                new = pd.DataFrame({"标题":title,"链接":href,'入库日期':self.today},index=["0"])
+                self.empty = self.empty.append(new,ignore_index=True)
+                print(self.today+'有更新')
+                self.new_href.append(href)
+                self.new_title.append(title)
+                self.count += 1 
+        print(self.empty)
+        self.empty.to_csv('accenture.csv',mode='a',header=False)
+        print(self.today +'更新'+str(self.count)+'条信息')
+        
+    def download_pdf(self):
+        for i in range(len(self.new_href)):
+            url = self.new_href[i]
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+            options = webdriver.ChromeOptions()
+            options.add_argument('--headless')#不弹窗
+#             options.add_argument("–proxy-server=http://《填入ip》")# 一定要注意，等号两边不能有空格
+            browser = webdriver.Chrome(options = options )
+
+            try:
+                browser.get(url)
+                time.sleep(3)
+                data = browser.page_source
+            
+                # data
+                from lxml import etree
+                data_tree = etree.HTML(data)
+                # data_tree
+                p_ahref = '//a/@href'   # 视网站而变化 
+                ahref_list = data_tree.xpath(p_ahref)
+                pdf_urls = []
+                for href in ahref_list:
+                    if 'pdf'in href or 'PDF'in href:
+                        pdf_urls.append(href)
+                pdf_urls
+                pdf_urls = sorted(set(pdf_urls), key = pdf_urls.index) # 删除重复项
+                count = len(pdf_urls)
+                while count:
+                    for pdfurl in pdf_urls:
+                        import requests
+                        response = requests.get('https:'+pdfurl,stream="TRUE")
+                        with open(self.new_title[i]+self.today+'.pdf','wb') as file:
+                            for data in response.iter_content():
+                                file.write(data)
+                        print('下载成功！')
+                        count -= 1
+                        browser.close()
+            except :
+                browser.close()
+                print('网页长时间未响应')
+if __name__ == "__main__":
+    acc = Acc()
+    acc.get_data()
+    acc.get_lists()
+    acc.insert_inform()
+    acc.download_pdf()
