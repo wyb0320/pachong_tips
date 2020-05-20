@@ -1,0 +1,104 @@
+import requests
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+from bs4 import BeautifulSoup as bs4
+import re
+
+class SJS_y_report:
+    def __init__(self):
+        self.url = 'http://www.sse.com.cn/disclosure/listedinfo/regular/'
+        self.href_list = []
+        self.pdf_urls = []
+        self.title_list = []
+        self.titles = []
+        self.count = 0
+        self.today = time.strftime('%Y-%m-%d')
+                
+    def get_data(self,code):
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server=http://《ip》")# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+        browser.get(url)
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+#         browser.execute_script(js)  
+        time.sleep(3)
+        browser.find_element_by_xpath('//*[@id="inputCode"]').clear()
+        browser.find_element_by_xpath('//*[@id="inputCode"]').send_keys(code)
+        
+        browser.find_element_by_xpath('//*[@id="btnQuery"]').click()
+        browser.find_element_by_xpath('//*[@id="tabs-658545"]/ul/li[2]/a').click()
+        
+        data = browser.page_source
+        self.data = data
+        
+    def get_pdf_urls(self): # 提取pdf的网址
+        data = self.data
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        data_tree
+        self.href_list = data_tree.xpath('//div/dl/dd/a[@target="_blank"]/@href')
+        self.title_list = data_tree.xpath('//div/dl/dd/a[@target="_blank"]/text()')
+        pdf_urls = []
+        titles = []
+        for i in range(len(self.href_list)):
+            if ('pdf'in self.href_list[i] or 'PDF'in self.href_list[i]) and ('年度'in self.title_list[i] and '摘要' not in self.title_list[i]):
+                pdf_urls.append(self.href_list[i])
+                titles.append(self.title_list[i])
+        self.pdf_urls = pdf_urls
+        self.titles = titles
+    def download_pdf(self):  
+        count = len(self.pdf_urls)
+        a = 1
+        while a <= count:
+            for i in range(len(self.pdf_urls)):
+                a += 1
+                if 'http' not in self.pdf_urls[i]: 
+                    self.pdf_urls[i] = 'http://www.sse.com.cn'+ self.pdf_urls[i]
+                    self.titles[i] = re.sub(':','：',self.titles[i])
+                import requests
+#                     try:
+                response = requests.get(self.pdf_urls[i],stream="TRUE")
+
+                with open('C:\\Users\\Bill\\Desktop\\房企年报'+self.titles[i]+'.pdf','wb') as file:
+                    for data in response.iter_content():
+                        file.write(data)
+                print('下载成功！')
+#                     except:
+#                         print('网页打不开，下载失败')
+def main():
+    df = pd.read_excel('C:\\Users\\Bill\\Desktop\\总资产.xlsx')
+    codes =  df['代码'].values.tolist()
+    SH_codes = []
+    SZ_codes = []
+    for i in range(len(codes)):
+        if 'SH' in  codes[i]:
+            SH_codes.append(codes[i][0:6])
+        if 'SZ' in  codes[i]:
+            SZ_codes.append(codes[i][0:6])
+    for sh in SH_codes:
+        sjs = SJS_y_report()
+        try:
+            sjs.get_data(sh)
+        except:
+            print(sh+'获取网页源代码错误')
+        try:
+            sjs.get_pdf_urls()
+        except:
+            print(sh+'没有pdf文件')
+        try:
+            sjs.download_pdf()
+        except: 
+            print(sh+'有pdf但下载失败')
+              
+if __name__ == "__main__":
+#     sjs = SJS_y_report()
+#     sjs.get_data('600606')
+#     sjs.get_pdf_urls()
+#     sjs.download_pdf()
+    main()
