@@ -1,0 +1,110 @@
+import requests
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+# from bs4 import BeautifulSoup as bs4
+import re
+from selenium.webdriver.common.keys import Keys
+class SZS_y_report:
+    def __init__(self):
+        self.url = 'http://www.szse.cn/disclosure/listed/fixed/index.html'
+        self.href_list = []
+        self.pdf_urls = []
+        self.title_list = []
+        self.titles = []
+        self.count = 0
+        self.today = time.strftime('%Y-%m-%d')
+                
+    def get_data(self,code):
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server=http://14.20.235.95:9797")# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+        browser.get(url)
+        browser.maximize_window() #最大化窗口
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+#         browser.execute_script(js)  
+        time.sleep(3)
+        browser.find_element_by_xpath('//*[@id="input_code"]').clear()
+        browser.find_element_by_xpath('//*[@id="input_code"]').send_keys(code)
+        time.sleep(3)
+        browser.find_element_by_xpath('//*[@id="input_code"]').send_keys(Keys.ENTER)
+#         browser.find_element_by_xpath('//*[@id="tabs-658545"]/ul/li[2]/a').click()
+        time.sleep(3)
+        data = browser.page_source
+        self.data = data
+        browser.close()
+    def get_pdf_urls(self): # 提取pdf的网址
+        data = self.data
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        data_tree
+        self.href_list = data_tree.xpath('//a[@class="annon-title-link"]/@href')
+        self.title_list = data_tree.xpath('//span[@class="pull-left ellipsis title-text"]/@title')
+        pdf_urls = []
+        titles = []
+        for i in range(len(self.title_list)):
+            if '年度报告'in self.title_list[i] and '2019'in self.title_list[i] and '摘要'not in self.title_list[i]\
+            and '半'not in self.title_list[i]:
+                self.href_list[i] = 'http://www.szse.cn'+self.href_list[i]
+                pdf_urls.append(self.href_list[i])
+                titles.append(self.title_list[i])
+        pdf_urls = sorted(set(pdf_urls), key = pdf_urls.index) # 删除重复项
+        self.pdf_urls = pdf_urls
+        self.titles = titles
+        
+    def download_pdf(self,url):  
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server=http://14.20.235.95:9797")# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        browser.get(url)
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+#         browser.execute_script(js)  
+        time.sleep(3)
+        data = browser.page_source
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        browser.find_element_by_xpath('//*[@id="annouceDownloadBtn"]').click()
+        time.sleep(3)
+
+
+if __name__ == "__main__":
+    df = pd.read_excel('C:\\Users\\Bill\\Desktop\\总资产.xlsx')
+    codes =  df['代码'].values.tolist()
+    SH_codes = []
+    SZ_codes = []
+    for i in range(len(codes)):
+        if 'SH' in  codes[i]:
+            SH_codes.append(codes[i][0:6])
+        if 'SZ' in  codes[i]:
+            SZ_codes.append(codes[i][0:6])
+    for sh in SZ_codes:
+        sjs = SZS_y_report()
+        try:
+            sjs.get_data(sh)
+        except:
+            print(sh+'获取网页源代码错误')
+        try:
+            sjs.get_pdf_urls()
+        except:
+            print(sh+'没有pdf文件')
+
+        for i in range(len(sjs.pdf_urls)):
+            sjs.download_pdf(sjs.pdf_urls[i])
+        print(sh+'下载了'+str(len(sjs.pdf_urls))+'个文件')
+
+#         for i in range(len(sjs.pdf_urls)):
+#             sjs.download_pdf(sjs.pdf_urls[i])
+#         print(sh+'下载了'+str(len(sjs.pdf_urls))+'个文件')
+            
+ #   sjs = SZS_y_report()
+#    sjs.get_data('001979')
+#    sjs.get_pdf_urls()
+ #   for i in range(len(sjs.pdf_urls)):
+ #       sjs.download_pdf(sjs.pdf_urls[i])
