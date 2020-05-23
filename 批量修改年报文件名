@@ -1,0 +1,36 @@
+import os
+import sys
+import pandas as pd
+from pandas import DataFrame
+
+
+def rename():
+    #1.读取表格的列用来构成我们的年报名称（我们是按照表格顺序下载的，所以务必保证这个顺序没有变过）
+    df = pd.read_excel('C:\\Users\\Bill\\Desktop\\总资产.xlsx')
+    codes =  df['代码'].values.tolist()
+    name_part1 = df['名称'].values.tolist()
+    name_part2 = '2019年年度报告'
+    path="C:\\Users\\Bill\\Desktop\\sz" # 需要修改的文件的储存位置
+    fileType='.pdf'
+    
+    #2.按修改时间（下载时间）给path下文件排序（默认的os.listdir是按照一种蜜汁顺序排列的）
+    filelist = []
+    result = [(i, os.stat(path+'\\'+i).st_mtime) for i in os.listdir(path)]
+    for i in sorted(result, key=lambda x: x[1]):
+        print(i[0])
+        filelist.append(i[0])
+    #3. 开始修改文件名称
+    count = 0 
+    for i in range(len(name_part1)):
+        code = codes[i]
+        conpany = name_part1[i]
+        name_part2 = name_part2
+        Olddir=os.path.join(path,filelist[i])
+        if os.path.isdir(Olddir):
+            continue
+        Newdir=os.path.join(path,code+conpany+name_part2+fileType)
+        os.rename(Olddir,Newdir)
+        count+=1
+        print("已经完成修改"+str(count)+"个文件")
+    print("一共修改了"+str(count)+"个文件")
+rename()
