@@ -1,0 +1,102 @@
+def qingxi(df):
+    df_qx = df.copy(deep=True)
+    df_qx['公司名称'] =  (df_qx['公司名称'].str.split('2019')).str[0]
+    df_qx['公司简称'] = (df_qx['公司名称'].str.split('SZ|：',1)).str[1]
+    df_qx['股票代码'] = (df_qx['公司名称'].str.split('SZ|：',1)).str[0]
+    
+    #判断是否抵押，用0/1表示
+    df_qx['是否抵押'] = df_qx['借款银行'].str.contains('抵押|质押').astype('int')
+    
+    # 筛选合同号
+    bank_lst = (df_qx['借款银行'].str.replace(r',','')).values.tolist()
+    hetong_list = []
+    for i in range(len(bank_lst)):
+    #     if '元' in bank_lst[i] and df['期限'][i] == '未披露':
+        hetong = re.findall('“(.*?)”',bank_lst[i])
+        if hetong == []:
+            hetong.append('')
+        if len(hetong[0]) > 10:
+            hetong_list.append(hetong[0])
+        else:
+            hetong_list.append('未披露')
+    df_qx['合同号'] = hetong_list
+    
+    # 从借款银行中找到缺失的金额
+    bank_lst = (df_qx['借款银行'].str.replace(r',','')).values.tolist()
+    for i in range(len(bank_lst)):
+        if '元' in bank_lst[i] and re.findall(r"\d+\.?\d*",df_qx['借款金额'][i]) == []:
+            num = re.findall(r"\d+\.?\d*",bank_lst[i])
+            if num == []:
+                num.append('')
+            df_qx['借款金额'][i] = num[0]
+            
+    # 从借款银行中找到缺失的期限
+    bank_lst = (df_qx['借款银行'].str.replace(r',','')).values.tolist()
+    for i in range(len(bank_lst)):
+        if '元' in bank_lst[i] and df_qx['期限'][i] == '未披露':
+            num = re.findall(r"\d+\.?\d*",bank_lst[i])
+            if num == []:
+                num.append('1')
+            if float(num[-1])%12 == 0 and float(num[-1]) < 200:
+                df_qx['期限'][i] = num[-1]+'个月'
+#                 print(i,df['期限'][i])
+    
+    # 清洗金额
+    df_qx['借款金额'] = df_qx['借款金额'].str.replace(r',','')
+    df_qx['借款金额'] = df_qx['借款金额'].str.replace(r'，','')
+#     df['借款金额'].str.extract(r'(\d+\.?\d*)')
+    moneys = []
+    for i in df_qx['借款金额'].values.tolist():
+        num = re.findall(r"\d+\.?\d*",i)
+        if num == []:
+            num.append('未披露')
+        moneys.append(num[-1])
+    for i in range(len(moneys)) :
+        if moneys[i] != '未披露':
+            if float(moneys[i]) < 100 :
+                moneys[i] = float(moneys[i]) *10000
+            elif float(moneys[i]) > 1000000:
+                moneys[i] = float(moneys[i]) / 10000
+#     print(moneys)
+    df_qx['金额(万元)'] = moneys
+    
+    # 清洗余额
+    df_qx['余额'] = df_qx['余额'].str.replace(r',','')
+    df_qx['余额'] = df_qx['余额'].str.replace(r'，','')
+#     df['借款金额'].str.extract(r'(\d+\.?\d*)')
+    moneys = []
+    for i in df_qx['余额'].values.tolist():
+        num = re.findall(r"\d+\.?\d*",i)
+        if num == []:
+            num.append('未披露')
+        moneys.append(num[-1])
+    for i in range(len(moneys)) :
+        if moneys[i] != '未披露':
+            if float(moneys[i]) < 100 :
+                moneys[i] = float(moneys[i]) *10000
+            elif float(moneys[i]) > 1000000:
+                moneys[i] = float(moneys[i]) / 10000
+#     print(moneys)
+    df_qx['余额(万元)'] = moneys
+    df_qx = df_qx.drop(['借款金额','余额','公司名称'],axis=1)
+    
+    # 清洗利率：
+#     rates = []
+#     for i in df_qx['利率'].values.tolist():
+#         num = re.findall(r"\d+\.?\d*",i)
+#         if num == []:
+#             num.append('未披露')
+# #         for i in range(len(num)):
+# #             if float(num[i]) > 15 :
+# #                 num.remove(num[i])
+#         rates.append(num[-1])
+# #     print(moneys)
+#     df_qx['利率'] = rates
+#     df_qx = df_qx.drop(['借款金额','余额'],axis=1)
+    
+    # 调整格式顺序
+    df_qx = df_qx.set_index('公司简称').sort_index()
+    
+    return df_qx 
+if '__name__' = '__main__':
+    df_qx = qingxi(df)
