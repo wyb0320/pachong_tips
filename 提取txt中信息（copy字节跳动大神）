@@ -1,0 +1,199 @@
+#  *_ coding : UTF-8 _*_
+#  开发团队  : Bill 
+#  开发时间  ：2020/5/23  23:20
+#  文件名称  : 房企.PY
+#  开发工具  : PyCharm
+import csv
+import shutil
+
+from pdfminer.converter import PDFPageAggregator
+from pdfminer.layout import LAParams
+from pdfminer.pdfparser import PDFParser, PDFDocument
+from pdfminer.pdfinterp import PDFTextExtractionNotAllowed
+from pdfminer.pdfinterp import PDFResourceManager
+from pdfminer.pdfinterp import PDFPageInterpreter
+from pdfminer.pdfdevice import PDFDevice
+import os
+import re
+
+# 写入csv
+def writetocsv(res,des_file):
+    with open(des_file, "a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        # headers = ['公司名称',  '借款银行', '借款金额','期限', '利率','余额']
+        for line in res:
+            writer.writerow(line)
+    print('保存成功')
+
+#找到pdf的有用页，用"借款期限|贷款期限"做关键词
+def find_page():
+    file_dir = "./raw_text"
+    filelist = os.listdir(file_dir)
+    for filename in filelist:
+        print("开始处理..."+filename)
+        target = ""
+        with open("./raw_text/"+filename, 'r', encoding='gbk') as f:
+             target = f.read()
+        pages = target.split('年度报告')
+        new_pages = []
+        for i in pages:
+            times = re.findall('(借款期限|贷款期限)', i, re.S)
+            if times:
+                new_pages.append(i)
+        if len(new_pages)==0:
+            with open("no_jkqx.csv", 'a', encoding='utf-8',newline="") as a:
+                writer = csv.writer(a)
+                writer.writerow([filename])
+                print("...不存在借款披露..." + filename)
+        else:
+            res = "".join(new_pages)
+            with open("./good_page/"+filename, 'w', encoding='utf-8') as x:
+                 x.write(res)
+            print("处理完毕..."+filename)
+
+#找到有用的段落
+def find_para(file_dir,des_dir):
+    filelist = os.listdir(file_dir)
+    coding = 'utf-8'
+    if file_dir == "./no_jkqx/":
+        coding = 'gbk'
+    for filename in filelist:
+        print("开始处理..."+filename)
+
+        target = ""
+        with open(file_dir+filename, 'r', encoding=coding) as f:
+             target = f.read()
+        # 分段
+        pages = target.split("。 \n")
+        new_pages = []
+        for page in pages:
+            i = re.sub('\s+', '', page).strip()
+            times = re.findall('(借款|贷款).*?\d*元', i, re.S)
+            if times:
+                new_pages.append(i)
+        if len(new_pages)==0:
+            with open("no_para_jkqx.csv", 'a', encoding='utf-8',newline="") as a:
+                writer = csv.writer(a)
+                writer.writerow([filename])
+                print("...不存在借款披露..." + filename)
+        else:
+            res = "\n".join(new_pages)
+            with open(des_dir+filename, 'w', encoding='utf-8') as x:
+                 x.write(res)
+            print("处理完毕..."+filename)
+
+#写入时候对空数据以及多数据的操作
+def chuli(data):
+    if len(data)==0:
+        return "未披露"
+    elif isinstance(data[0],str):
+        return "".join(data)
+    else:
+        return "".join(data[0])
+
+#找到每段中的信息
+def find_classinfo(file_dir,des_file):
+    filelist = os.listdir(file_dir)
+    for filename in filelist:
+        print("开始处理..."+filename)
+        company = "".join(filename.split(".")[:-1])
+        target = ""
+        with open(file_dir + filename, 'r', encoding='utf-8') as f:
+            target = f.read()
+        lines = target.split("\n")
+        res = []
+        for line in lines:
+            amounts = re.findall('(借款|贷款)(.{3,100}?)元',line, re.S)
+            times = re.findall('借款期限(.{3,60}?)，', line, re.S)
+            banks = re.findall('(与|向)(.{3,100}?)(借款|贷款)', line, re.S)
+            balances = re.findall('余额(.{3,60}?)元。',line, re.S)
+            rates = re.findall('利率.{3,20}?[\d]*?%', line, re.S)
+
+            print('金额信息条数：', len(amounts))
+            print('期限信息条数：', len(times))
+            print('银行信息条数：', len(banks))
+            print('余额信息条数：', len(balances))
+            print('余额信息条数：', len(balances))
+
+            tmp = [company, chuli(banks), chuli(amounts),chuli(times),chuli(rates),chuli(balances)]
+            res.append(tmp)
+        writetocsv(res,des_file)
+
+
+#把没有借款期限的从原始文档移出去
+def move_no_jkqx():
+    with open("no_jkqx.csv", 'r', encoding='utf-8') as f:
+        lines = csv.reader(f)
+        for line in lines:
+            desfile = "./no_jkqx/"+line[0]
+            srcfile = "./raw_text/"+line[0]
+
+            shutil.move(srcfile,desfile)
+            print(line[0]+"移动完毕")
+
+#对第一次生成的文档进行清洗
+def clean_final(source_file,des_file):
+    res = []
+    with open(source_file, 'r', encoding='utf-8') as f:
+        lines = csv.reader(f)
+        for line in lines:
+            print(line[1])
+            if line[1] != "未披露" and line[1] != "向中央银行借款":
+                if re.findall('银行', line[1], re.S):
+                    res.append(line)
+    with open(des_file, 'a', newline="",encoding='utf-8') as x:
+        writer = csv.writer(x)
+            # headers = ['公司名称','借款银行', '借款金额','期限', '利率','余额']
+        for line in res:
+            writer.writerow(line)
+        print('保存成功')
+
+def merge_file():
+    res = []
+    with open("res1_qx.csv", 'r', encoding='utf-8') as f:
+        lines = csv.reader(f)
+        for line in lines:
+            res.append(line)
+    with open("res2_qx.csv", 'r', encoding='utf-8') as x:
+        lines = csv.reader(x)
+        for line in lines:
+            res.append(line)
+    with open("final_res.csv", 'a', newline="",encoding='utf-8') as a:
+        writer = csv.writer(a)
+        headers = ['公司名称','借款银行', '借款金额','期限', '利率','余额']
+        writer.writerow(headers)
+        for line in res:
+            writer.writerow(line)
+
+    print('最终final_res.csv文件生成')
+
+if __name__ == '__main__':
+
+    file_dir = "./raw_text/"
+    filelist = os.listdir(file_dir)
+    print(len(filelist))
+    '''
+    1.raw_text 是原始的txt文件（全部的）
+    2.good_page 是对页做的搜索，输入是 raw_text,输出是 good_page，find_page()
+    3.good_para 是对段做的搜索，输入是 good_page,输出是 good_para，方法是 find_para()，通过“(借款|贷款)...元”进行搜索，存储筛选后的段落
+    4.no_jkqx 是把不包含(借款期限|贷款期限)的文件从 raw_text 移动到 no_jkqx ，方法是move_no_jkqx()
+    5.good_para_2 是对段做的搜索，输入是 no_jkqx,输出是 good_para_2，方法是 find_para()，通过“(借款|贷款)...元”进行搜索，存储筛选后的段落
+    6.res1.csv 是对 good_para 中的每段进行正则匹配得到的，输入是 good_para，输出是 res1.csv，方法是 find_classinfo（）
+    7.res2.csv 是对 good_para_2 中的每段进行正则匹配得到的，输入是 good_para_2，输出是 res2.csv，方法是 find_classinfo（）
+    
+    8.res1_qx.csv 和 res2_qx.csv分别是对 res1.csv和 res2.csv进行清洗得到的，函数是 clean_final()
+    9.final_res.csv为最终文件，是对res1_qx.csv 和 res2_qx.csv 合并得到
+    '''
+
+    find_page()
+    find_para("./good_page/","./good_para/")
+    move_no_jkqx()
+    find_para("./no_jkqx/","./good_para_2/") #对不包含借款信息的公司进行分段处理
+    find_classinfo("./good_para/","res1.csv")
+    find_classinfo("./good_para_2/","res2.csv")
+
+    clean_final("res1.csv","res1_qx.csv")
+    clean_final("res2.csv","res2_qx.csv")
+    merge_file()
+
+
