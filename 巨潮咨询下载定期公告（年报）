@@ -1,0 +1,192 @@
+import requests
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+# from bs4 import BeautifulSoup as bs4
+import re
+from selenium.webdriver.common.keys import Keys
+import os
+import sys
+import csv
+import shutil
+
+# 下载的过程自动重命名，巨潮咨询下载的年报名称不是乱码，我只在名称前面加入了股票代码，方便储存
+def rename(real_name):
+    path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
+    filelist = []
+    result = [(i, os.stat(path+'\\'+i).st_mtime) for i in os.listdir(path)]
+    for i in sorted(result, key=lambda x: x[1]):
+    #     print(i[0])
+        filelist.append(i[0])
+    new_file = filelist[-1]
+    old_name = filelist[-1].split('\\')[-1]
+    # print(new_file)
+    #3. 开始修改文件名称
+    name_part1 = real_name
+    name_part2 = '2019年年度报告'
+    fileType='.pdf'
+    new_path ='C:\\Users\\Administrator\\Desktop\\深交所年报2'
+
+    Olddir=os.path.join(path,new_file)
+    Newdir=os.path.join(new_path,name_part1+'.SZ'+old_name)
+    os.rename(Olddir,Newdir)
+    
+#定义一个 年报下载的类
+class SZS_y_report:
+    def __init__(self):
+        self.url = 'http://www.cninfo.com.cn/new/commonUrl?url=disclosure/list/search&bulletin=true#szseMain/1'
+        self.href_list = []
+        self.pdf_urls = []
+        self.title_list = []
+        self.titles = []
+        self.count = 0
+        self.today = time.strftime('%Y-%m-%d')
+        self.ip = 'https://ip'   
+        
+    def get_data(self,code):        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+        browser.get(url)
+#         browser.maximize_window() #最大化窗口
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，反爬
+#         browser.execute_script(js)  
+#         //*[@id="main"]/div[2]/div[1]/div[1]/div[3]/div/div/span[1]/i
+        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/div[3]/div/div/span[1]/i').click() #去掉深主板的标签
+        time.sleep(3)
+        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/form/div[1]/div/div/div/input').clear()
+        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/form/div[1]/div/div/div/input').send_keys(code)
+        time.sleep(3)
+        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/form/div[1]/div/div/div/input').send_keys(Keys.ENTER)
+#         browser.find_element_by_xpath('//*[@id="tabs-658545"]/ul/li[2]/a').click()
+        time.sleep(5)
+        data = browser.page_source
+        self.data = data
+        browser.close()
+    def get_pdf_urls(self): # 提取pdf的网址
+        data = self.data
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        data_tree
+        self.href_list = data_tree.xpath('//span[@class="ahover"]/a[@target="_blank"]/@href')
+        self.title_list = data_tree.xpath('//span[@class="ahover"]/a[@target="_blank"]/text()')
+        pdf_urls = []
+        titles = []
+        for i in range(len(self.title_list)):
+            if '年度报告'in self.title_list[i] and '2019'in self.title_list[i] and '摘要'not in self.title_list[i]\
+            and '半'not in self.title_list[i] :
+                self.href_list[i] = 'http://www.cninfo.com.cn'+self.href_list[i]
+                pdf_urls.append(self.href_list[i])
+                titles.append(self.title_list[i])
+        pdf_urls = sorted(set(pdf_urls), key = pdf_urls.index) # 删除重复项
+        self.pdf_urls = pdf_urls
+        self.titles = titles
+        print(self.pdf_urls)
+        
+    def download_pdf(self,url):  
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+#         options.add_argument("–proxy-server=http://14.20.235.95:9797")# 一定要注意，等号两边不能有空格
+        options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        browser.get(url)
+        browser.set_page_load_timeout(25)
+#         browser.maximize_window() #最大化窗口
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
+#         browser.execute_script(js)  
+        time.sleep(3)
+        data = browser.page_source
+        from lxml import etree
+        data_tree = etree.HTML(data)
+        time.sleep(1)
+        browser.find_element_by_xpath('/html/body/div[1]/div[1]/div[2]/div[1]/a[3]').click()
+        time.sleep(5)
+#         self.href_list = data_tree.xpath('//a/@href')
+#         download_urls = []
+#         for href in self.href_list:
+#             if 'pdf'in href or 'PDF'in href:
+#                 download_urls.append(href)
+#         download_urls = sorted(set(download_urls), key = download_urls.index) # 删除重复项
+#         count = len(download_urls)
+#         a = 0
+#         while a <= count:
+#             for download_url in download_urls:
+#                 a += 1
+#                 if 'http' in download_url: 
+#                     import requests
+#                     try:
+#                         response = requests.get(download_url,stream="TRUE")
+#                         with open('C:\\Users\\<username>\\Desktop\\sz'+name+str(a)+'.pdf','wb') as file:
+#                             for data in response.iter_content():
+#                                 file.write(data)
+# #                         print('下载成功！')
+#                     except:
+#                         print('网页打不开，下载失败')
+def numOfdownlist(path):
+#     path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
+    now_num = len(os.listdir(path))
+    return now_num
+def ifispdf(path):
+    filelist = []
+    result = [(i, os.stat(path+'\\'+i).st_mtime) for i in os.listdir(path)]
+    for i in sorted(result, key=lambda x: x[1]):
+    #     print(i[0])
+        filelist.append(i)
+    new_file = filelist[-1]
+    if new_file[-4:] == '.pdf'or new_file[-4:] == '.PDF' :
+        return True
+    else:
+        return False
+if __name__ == "__main__":
+    dl_path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
+    df = pd.read_csv('stock_list.csv') #读取股票代码，代码获取方式为tushare
+    code_df = (df['fail_code'].apply(str)).str.zfill(6)
+    SZ_codes =  code_df.values.tolist()
+    SH_codes = []
+    SZ_codes = []
+    for i in range(len(codes)):
+       if 'SH' in  codes[i]:
+           SH_codes.append(codes[i][0:6])
+       if 'SZ' in  codes[i]:
+           SZ_codes.append(codes[i][0:6])
+                
+    for j in range(len(SZ_codes)):
+        start_num = numOfdownlist(dl_path) # 用于判断是否下载新的文件
+        sjs = SZS_y_report()
+        try:
+            sjs.get_data(SZ_codes[j])
+        except:
+            print(SZ_codes[j]+'获取网页源代码错误')
+#         try:
+        sjs.get_pdf_urls()
+#         except:
+#         print(SZ_codes[j]+'没有pdf文件')
+        if sjs.pdf_urls != []:
+#             try:
+            sjs.download_pdf(sjs.pdf_urls[0])
+#             except:
+#                 print(SZ_codes[j]+'超时')
+            time.sleep(5)
+            now_num = numOfdownlist(dl_path)
+            if now_num > start_num and ifispdf:
+                try:
+                    rename(SZ_codes[j])
+                    print(SZ_codes[j]+'年报下载成功')
+                except :
+                    print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')
+                    with open("fail_list_2.csv", 'a', encoding='utf-8',newline="") as a:
+                        writer = csv.writer(a)
+                        writer.writerow([SZ_codes[j]])
+            else:
+                print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')
+                with open("fail_list_2.csv", 'a', encoding='utf-8',newline="") as a:
+                    writer = csv.writer(a)
+                    writer.writerow([SZ_codes[j]])
+                
+        else:
+            print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')            
