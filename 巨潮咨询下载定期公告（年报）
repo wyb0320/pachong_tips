@@ -11,7 +11,7 @@ import sys
 import csv
 import shutil
 
-# 下载的过程自动重命名，巨潮咨询下载的年报名称不是乱码，我只在名称前面加入了股票代码，方便储存
+# 尝试下载的过程自动重命名
 def rename(real_name):
     path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
     filelist = []
@@ -25,14 +25,12 @@ def rename(real_name):
     #3. 开始修改文件名称
     name_part1 = real_name
     name_part2 = '2019年年度报告'
-    fileType='.pdf'
-    new_path ='C:\\Users\\Administrator\\Desktop\\深交所年报2'
+    new_path ='C:\\Users\\Administrator\\Desktop\\上交所年报2'
 
     Olddir=os.path.join(path,new_file)
-    Newdir=os.path.join(new_path,name_part1+'.SZ'+old_name)
+#     Newdir=os.path.join(new_path,name_part1+'.SZ'+old_name)
+    Newdir=os.path.join(new_path,name_part1+'：'+old_name)
     os.rename(Olddir,Newdir)
-    
-#定义一个 年报下载的类
 class SZS_y_report:
     def __init__(self):
         self.url = 'http://www.cninfo.com.cn/new/commonUrl?url=disclosure/list/search&bulletin=true#szseMain/1'
@@ -42,9 +40,10 @@ class SZS_y_report:
         self.titles = []
         self.count = 0
         self.today = time.strftime('%Y-%m-%d')
-        self.ip = 'https://ip'   
+#         self.ip = 'http://14.20.235.95:9797'
+        self.ip = 'https://223.245.47.253:65309'        
+    def get_data(self,code):
         
-    def get_data(self,code):        
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
         options = webdriver.ChromeOptions()
 #         options.add_argument('--headless')#不弹窗
@@ -53,10 +52,10 @@ class SZS_y_report:
         url = self.url
         browser.get(url)
 #         browser.maximize_window() #最大化窗口
-#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，反爬
+#         js="var q=document.documentElement.scrollTop=100000"  #注意：此必须处加入向下滑动操作，否则提取不到源代码
 #         browser.execute_script(js)  
 #         //*[@id="main"]/div[2]/div[1]/div[1]/div[3]/div/div/span[1]/i
-        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/div[3]/div/div/span[1]/i').click() #去掉深主板的标签
+        browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/div[3]/div/div/span[1]/i').click()
         time.sleep(3)
         browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/form/div[1]/div/div/div/input').clear()
         browser.find_element_by_xpath('//*[@id="main"]/div[2]/div[1]/div[1]/form/div[1]/div/div/div/input').send_keys(code)
@@ -91,7 +90,6 @@ class SZS_y_report:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
         options = webdriver.ChromeOptions()
 #         options.add_argument('--headless')#不弹窗
-#         options.add_argument("–proxy-server=http://14.20.235.95:9797")# 一定要注意，等号两边不能有空格
         options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
         browser = webdriver.Chrome(options = options )
         browser.get(url)
@@ -131,6 +129,7 @@ def numOfdownlist(path):
 #     path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
     now_num = len(os.listdir(path))
     return now_num
+    
 def ifispdf(path):
     filelist = []
     result = [(i, os.stat(path+'\\'+i).st_mtime) for i in os.listdir(path)]
@@ -142,51 +141,52 @@ def ifispdf(path):
         return True
     else:
         return False
+ #储存下载失败的股票代码
+def save_fail_code(code):
+    with open("fail_list_6.csv", 'a', encoding='utf-8',newline="") as a:
+        writer = csv.writer(a)
+        writer.writerow([code])
 if __name__ == "__main__":
     dl_path="C:\\Users\\Administrator\\Downloads" # 需要修改的文件的储存位置
-    df = pd.read_csv('stock_list.csv') #读取股票代码，代码获取方式为tushare
-    code_df = (df['fail_code'].apply(str)).str.zfill(6)
-    SZ_codes =  code_df.values.tolist()
-    SH_codes = []
-    SZ_codes = []
-    for i in range(len(codes)):
-       if 'SH' in  codes[i]:
-           SH_codes.append(codes[i][0:6])
-       if 'SZ' in  codes[i]:
-           SZ_codes.append(codes[i][0:6])
-                
-    for j in range(len(SZ_codes)):
+    df = pd.read_csv('fail_list_5.csv')
+#     code_df = (df['ts_code'].apply(str)).str.zfill(6)
+    codes = ( df['fail_code'].apply(str)).values.tolist()
+#     SH_codes = []
+#     SZ_codes = []
+#     for i in range(len(codes)):
+#         if 'SH' in  codes[i]:
+#             SH_codes.append(codes[i][0:6])
+#         if 'SZ' in  codes[i]:
+#             SZ_codes.append(codes[i][0:6])
+            
+    
+    
+    for j in range(len(codes)):
         start_num = numOfdownlist(dl_path) # 用于判断是否下载新的文件
         sjs = SZS_y_report()
         try:
-            sjs.get_data(SZ_codes[j])
+            sjs.get_data(codes[j])
         except:
-            print(SZ_codes[j]+'获取网页源代码错误')
-#         try:
-        sjs.get_pdf_urls()
-#         except:
-#         print(SZ_codes[j]+'没有pdf文件')
+            print(codes[j]+'获取网页源代码错误')
+        try:
+            sjs.get_pdf_urls()
+        except:
+            print(codes[j]+'没有pdf文件')
         if sjs.pdf_urls != []:
-#             try:
             sjs.download_pdf(sjs.pdf_urls[0])
-#             except:
-#                 print(SZ_codes[j]+'超时')
-            time.sleep(5)
+            time.sleep(10)
             now_num = numOfdownlist(dl_path)
             if now_num > start_num and ifispdf:
                 try:
-                    rename(SZ_codes[j])
-                    print(SZ_codes[j]+'年报下载成功')
+                    rename(codes[j])
+                    print(codes[j]+'年报下载成功')
                 except :
-                    print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')
-                    with open("fail_list_2.csv", 'a', encoding='utf-8',newline="") as a:
-                        writer = csv.writer(a)
-                        writer.writerow([SZ_codes[j]])
+                    print(codes[j]+'下载失败1！！！！！！！！！！！！！')
+                    save_fail_code(codes[j])
             else:
-                print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')
-                with open("fail_list_2.csv", 'a', encoding='utf-8',newline="") as a:
-                    writer = csv.writer(a)
-                    writer.writerow([SZ_codes[j]])
+                print(codes[j]+'下载失败2！！！！！！！！！！！！！')
+                save_fail_code(codes[j])
                 
         else:
-            print(SZ_codes[j]+'下载失败！！！！！！！！！！！！！')            
+            print(codes[j]+'下载失败3！！！！！！！！！！！！！')
+            save_fail_code(codes[j])
