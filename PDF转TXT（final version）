@@ -1,0 +1,111 @@
+from pdfminer.converter import PDFPageAggregator
+from pdfminer.layout import LAParams
+from pdfminer.pdfparser import PDFParser,PDFDocument
+from pdfminer.pdfinterp import PDFTextExtractionNotAllowed
+from pdfminer.pdfinterp import PDFResourceManager
+from pdfminer.pdfinterp import PDFPageInterpreter
+from pdfminer.pdfdevice import PDFDevice
+import warnings
+import os
+import re
+import csv
+def move_to_error(filename):
+    with open("fail_list_6.csv", 'a', encoding='utf-8',newline="") as a:
+        writer = csv.writer(a)
+        writer.writerow([code])
+def move_to_error(filename):
+    path="C:\\Users\\Administrator\\Desktop\\上交所年报" 
+    new_path ='C:\\Users\\Administrator\\Desktop\\error'
+    Olddir=os.path.join(path,filename)
+    Newdir=os.path.join(new_path,filename)
+    os.rename(Olddir,Newdir)   
+def move_to_finish(filename):
+    path="C:\\Users\\Administrator\\Desktop\\上交所年报" 
+    new_path ='C:\\Users\\Administrator\\Desktop\\finished'
+    Olddir=os.path.join(path,filename)
+    Newdir=os.path.join(new_path,filename)
+    os.rename(Olddir,Newdir)   
+def pdfTotxt(path,aims_path):
+    '''
+    path : 转换pdf所在位置
+    aims_path : 储存位置
+    '''
+    #找出路径下的pdf文件
+    
+    file_dir = path
+    file_list = []
+    for files in os.walk(file_dir):
+        for a in files[2]:
+            if os.path.splitext(a)[1] == '.pdf' or os.path.splitext(a)[1] == '.PDF':
+                aims = path+'\\'+a
+                file_list.append(aims)
+#     print(file_list)
+
+    for i in range(1,len(file_list)):
+        sth_is_wrong = False
+        print('正在解析……',file_list[i].split('\\')[-1][:-4])
+        file = file_list[i]
+        pdf0 = open(file,'rb')
+        #以下代码为PDF解析固定操作，复制粘贴即可
+        parser = PDFParser(pdf0) #创建解释器
+        doc = PDFDocument() #创建文档对象
+        parser.set_document(doc)#链接解释器和文档对象
+        try:
+            doc.set_parser(parser)
+        except:
+            print(file_list[i].split('\\')[-1][:-4],'is not a pdf')
+            sth_is_wrong = True
+            continue
+        doc.initialize('')#文件初始化
+        resources = PDFResourceManager()#创建资源管理其
+        laparam = LAParams()#创建参数分析其
+        device = PDFPageAggregator(resources,laparams = laparam)#创建聚合器
+        interpreter = PDFPageInterpreter(resources,device)#创建页面解释器
+
+        text_all = []
+        try:
+            for page in doc.get_pages():
+                try:
+                    interpreter.process_page(page)
+                except:
+                    print(file_list[i]+'字体缺失')
+                    sth_is_wrong = True
+                    continue
+                result = device.get_result()
+                for block in result:
+                    if hasattr(block,'get_text'):#判断读取到的是否是文本
+                        text = block.get_text()
+                        text_all.append(text)
+            text_all = ''.join(text_all)
+            print(file_list[i].split('\\')[-1][:-4],'解析成功')
+            pdf0.close()
+        except:
+            print('未知错误')
+            sth_is_wrong = True
+    #     print(text_all)
+        if sth_is_wrong == False:
+            # 将文本保存为txt
+            try:
+                try:
+                    file1 = open(aims_path+file_list[i].split('\\')[-1][:-4]+'.txt','a')
+                    print('1')
+                except:
+                    file1 = open(aims_path+file_list[i].split('\\')[-1][:-4]+'.txt','a',encoding = 'utf-8')
+                    print('2')
+            except:
+                file1 = open(aims_path+file_list[i].split('\\')[-1][:-4]+'.txt','a',encoding =  'gbk')
+                print('3')
+            file1.write(text_all.encode("gbk", 'ignore').decode("gbk", "ignore"))
+            print(file_list[i].split('\\')[-1][:-4],'保存成功')
+            file1.close()
+        # 若发生过错误，把偶你到error
+        if sth_is_wrong == True:
+            move_to_error(file_list[i].split('\\')[-1])
+        else:
+            move_to_finish(file_list[i].split('\\')[-1])
+     
+if __name__ == '__main__':
+    path = r'C:\Users\Administrator\Desktop\上交所年报'
+    aims_path = 'C:\\Users\\Administrator\\Desktop\\上交所年报\\文本\\'
+    pdfTotxt(path,aims_path)
+    
