@@ -14,13 +14,13 @@ def move_to_error(filename):
         writer = csv.writer(a)
         writer.writerow([code])
 def move_to_error(filename):
-    path="C:\\Users\\Administrator\\Desktop\\上交所年报" 
+    path="C:\\Users\\Administrator\\Desktop\\深交所年报" 
     new_path ='C:\\Users\\Administrator\\Desktop\\error'
     Olddir=os.path.join(path,filename)
     Newdir=os.path.join(new_path,filename)
     os.rename(Olddir,Newdir)   
 def move_to_finish(filename):
-    path="C:\\Users\\Administrator\\Desktop\\上交所年报" 
+    path="C:\\Users\\Administrator\\Desktop\\深交所年报" 
     new_path ='C:\\Users\\Administrator\\Desktop\\finished'
     Olddir=os.path.join(path,filename)
     Newdir=os.path.join(new_path,filename)
@@ -41,7 +41,7 @@ def pdfTotxt(path,aims_path):
                 file_list.append(aims)
 #     print(file_list)
 
-    for i in range(1,len(file_list)):
+    for i in range(len(file_list)):
         sth_is_wrong = False
         print('正在解析……',file_list[i].split('\\')[-1][:-4])
         file = file_list[i]
@@ -54,14 +54,22 @@ def pdfTotxt(path,aims_path):
             doc.set_parser(parser)
         except:
             print(file_list[i].split('\\')[-1][:-4],'is not a pdf')
-            sth_is_wrong = True
+#             sth_is_wrong = True
+#             pdf0.close()
+#             move_to_finish(file_list[i].split('\\')[-1])
+#             print('移动到error')
             continue
-        doc.initialize('')#文件初始化
-        resources = PDFResourceManager()#创建资源管理其
-        laparam = LAParams()#创建参数分析其
-        device = PDFPageAggregator(resources,laparams = laparam)#创建聚合器
-        interpreter = PDFPageInterpreter(resources,device)#创建页面解释器
-
+        try:
+            doc.initialize('')#文件初始化
+            resources = PDFResourceManager()#创建资源管理其
+            laparam = LAParams()#创建参数分析其
+            device = PDFPageAggregator(resources,laparams = laparam)#创建聚合器
+            interpreter = PDFPageInterpreter(resources,device)#创建页面解释器
+        except:
+            print('初始化错误')
+#             pdf0.close()
+#             move_to_finish(file_list[i].split('\\')[-1])
+            continue
         text_all = []
         try:
             for page in doc.get_pages():
@@ -82,6 +90,7 @@ def pdfTotxt(path,aims_path):
         except:
             print('未知错误')
             sth_is_wrong = True
+            pdf0.close()
     #     print(text_all)
         if sth_is_wrong == False:
             # 将文本保存为txt
@@ -98,14 +107,14 @@ def pdfTotxt(path,aims_path):
             file1.write(text_all.encode("gbk", 'ignore').decode("gbk", "ignore"))
             print(file_list[i].split('\\')[-1][:-4],'保存成功')
             file1.close()
-        # 若发生过错误，把偶你到error
+        # 若发生过错误，移动到error
         if sth_is_wrong == True:
             move_to_error(file_list[i].split('\\')[-1])
         else:
             move_to_finish(file_list[i].split('\\')[-1])
      
 if __name__ == '__main__':
-    path = r'C:\Users\Administrator\Desktop\上交所年报'
-    aims_path = 'C:\\Users\\Administrator\\Desktop\\上交所年报\\文本\\'
+    path = r'C:\Users\Administrator\Desktop\深交所年报'
+    aims_path = 'C:\\Users\\Administrator\\Desktop\\深交所年报\\文本\\'
     pdfTotxt(path,aims_path)
     
