@@ -1,0 +1,76 @@
+import requests
+from selenium import webdriver
+
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+# from bs4 import BeautifulSoup as bs4
+import re
+from selenium.webdriver.common.keys import Keys
+import os
+import sys
+import csv
+import shutil
+from lxml import etree
+PROXY = "39.137.69.10:8080"
+def save_infor(context):
+    with open("zx.csv", 'a', encoding='utf-8',newline="") as a:
+        writer = csv.writer(a)
+        writer.writerow(context)
+class DFCF_news():
+    def __init__(self):
+#         self.url = 'http://so.eastmoney.com/News/s?keyword='+company+'&pageindex=2&searchrange=8192&sortfiled=4'
+        self.url = ''
+        self.pre = 'http://finance.eastmoney.com/'
+        self.href_list = []
+        self.pdf_urls = []
+        self.title_list = []
+        self.titles = []
+        self.count = 0
+        self.today = time.strftime('%Y-%m-%d')        
+    def get_data(self,company,page):
+        self.url = 'http://so.eastmoney.com/News/s?keyword='+company+'&pageindex='+page+'&searchrange=8192&sortfiled=4'
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.arguments("--proxy-server="+self.ip)
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("--proxy-server=http://{0}".format(PROXY))# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = self.url
+#         browser.get("http://httpbin.org/ip")
+        browser.get(url)
+        time.sleep(3)
+        data = browser.page_source
+        self.data = data
+#         print(data)
+        browser.quit()
+    def get_hrefs(self):
+        data = self.data
+        data_tree = etree.HTML(data)
+        data_tree
+        self.href_list = data_tree.xpath('//h3/a/@href')
+    def get_infor(self,href):
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options )
+        url = href
+        browser.get(url)
+        time.sleep(3)
+        data = browser.page_source
+        data_tree = etree.HTML(data)
+#         print(data)
+        href = href
+        title = data_tree.xpath('//h1/text()')[0]
+        date = data_tree.xpath('//div[@class="time"]/text()')[0]
+        display(href,title,date)
+        line = [title,date,href]
+        save_infor(line)
+        browser.close()
+if __name__ =='__main__':
+    zx = DFCF_news()
+    zx.get_data('戴尔','3')
+    zx.get_hrefs()
+    for href in zx.href_list:
+        zx.get_infor(href)
+        
