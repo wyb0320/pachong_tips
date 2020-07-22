@@ -1,0 +1,41 @@
+import pandas as pd
+from pandas import DataFrame
+pd.set_option('display.max_rows', None)
+pd.set_option('max_colwidth',5000)
+import re
+
+df = pd.read_excel('shenji.xlsx')# df为原文件用于最后score结果的添加
+def func(df):
+    
+    df1 = df.copy(deep=True) 
+    for year in range(2010,2019):
+        df1[year]=df1[year].str.split('会计').str[0]
+    df_qx = df.copy(deep=True) 
+    df_qx1 = df1.copy(deep=True) # 分数计算基于df1
+    
+    score_list = []
+    for num in df.index:
+        now_year = 2010
+        score = 0
+        change_years_list = []
+        while now_year < 2019:
+            if df_qx1.loc[num,now_year] != df_qx1.loc[num,now_year+1]:
+                change_year = now_year+1
+                change_years_list.append(change_year)
+            now_year += 1  
+        #     print(change_years_list) 
+        
+        if len(change_years_list) > 1:
+            for i in range(1,len(change_years_list)):
+                if change_years_list[i] - change_years_list[i-1] <= 2:
+                    score = -1
+                else :
+                    score = 0
+        else:
+            score = 0 
+        score_list.append(score)
+#     print(len(score_list))
+    df_qx['证券代码'] = df_qx['证券代码'].apply(str).str.zfill(6)
+    df_qx['score'] = pd.Series(score_list)
+    return df_qx
+new_df = func(df)
