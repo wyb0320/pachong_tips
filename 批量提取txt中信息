@@ -184,7 +184,7 @@ if __name__ == '__main__':
     8.res1_qx.csv 和 res2_qx.csv分别是对 res1.csv和 res2.csv进行清洗得到的，函数是 clean_final()
     9.final_res.csv为最终文件，是对res1_qx.csv 和 res2_qx.csv 合并得到
     '''
-
+    ##
     find_page()
     find_para("./good_page/","./good_para/")
     move_no_jkqx()
