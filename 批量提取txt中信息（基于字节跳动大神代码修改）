@@ -15,7 +15,7 @@ from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.pdfdevice import PDFDevice
 import os
 import re
-
+csv.field_size_limit(500 * 1024 * 1024)
 # 写入csv
 def writetocsv(res,des_file):
     with open(des_file, "a", encoding="utf-8", newline="") as f:
@@ -41,7 +41,7 @@ def find_page():
             if times:
                 new_pages.append(i)
         if len(new_pages)==0:
-            with open("no_jkqx.csv", 'a', encoding='utf-8',newline="") as a:
+            with open("no_jkqx.csv", 'a', encoding='utf-8', newline="") as a:
                 writer = csv.writer(a)
                 writer.writerow([filename])
                 print("...不存在借款披露..." + filename)
@@ -103,20 +103,41 @@ def find_classinfo(file_dir,des_file):
         lines = target.split("\n")
         res = []
         for line in lines:
-            amounts = re.findall('(借款|贷款)(.{3,100}?)元',line, re.S)
-            times = re.findall('借款期限(.{3,60}?)，', line, re.S)
-            banks = re.findall('(与|向)(.{3,100}?)(借款|贷款)', line, re.S)
-            balances = re.findall('余额(.{3,60}?)元。',line, re.S)
-            rates = re.findall('利率.{3,20}?[\d]*?%', line, re.S)
-
-            print('金额信息条数：', len(amounts))
-            print('期限信息条数：', len(times))
-            print('银行信息条数：', len(banks))
-            print('余额信息条数：', len(balances))
-            print('余额信息条数：', len(balances))
-
-            tmp = [company, chuli(banks), chuli(amounts),chuli(times),chuli(rates),chuli(balances)]
-            res.append(tmp)
+            # 同；判断是否含有多条信息
+            if '；' in line :
+                multlines = line.split('；')
+                for new_line in multlines:
+                    amounts = re.findall('(借款|贷款|总额)(.{3,100}?)元', new_line, re.S)
+                    # times = re.findall('借款期限(.{3,60}?)，', line, re.S)
+                    if '期限' in new_line:
+                        times = re.findall('(.{4}?)年(.{1,2}?)月(.{1,2}?)日', new_line, re.S)
+                        for i in range(len(times)):
+                            times[i] = '-'.join(times[i])
+                        times = '~'.join(times)
+                    else:
+                        times = []
+                    banks = re.findall('(与|向)(.{3,100}?)(借款|贷款)', new_line, re.S)
+                    balances = re.findall('余额(.{3,60}?)元。', new_line, re.S)
+                    rates = re.findall('利率.{3,20}?[\d]*?%', new_line, re.S)
+                    infor = new_line
+                    tmp = [company, chuli(banks), chuli(amounts), chuli(times), chuli(rates), chuli(balances), infor]
+                    res.append(tmp)
+            else:
+                amounts = re.findall('(借款|贷款|总额)(.{3,100}?)元',line, re.S)
+                # times = re.findall('借款期限(.{3,60}?)，', line, re.S)
+                if '借款期限' in line:
+                    times = re.findall('(.{4}?)年(.{1,2}?)月(.{1,2}?)日', line, re.S)
+                    for i in range(len(times)):
+                        times[i] = '-'.join(times[i])
+                    times = '~'.join(times)
+                else:
+                    times = []
+                banks = re.findall('(与|向)(.{3,100}?)(借款|贷款)', line, re.S)
+                balances = re.findall('余额(.{3,60}?)元。',line, re.S)
+                rates = re.findall('利率.{3,20}?[\d]*?%', line, re.S)
+                infor = line
+                tmp = [company, chuli(banks), chuli(amounts),chuli(times),chuli(rates),chuli(balances),infor]
+                res.append(tmp)
         writetocsv(res,des_file)
 
 
@@ -137,7 +158,7 @@ def clean_final(source_file,des_file):
     with open(source_file, 'r', encoding='utf-8') as f:
         lines = csv.reader(f)
         for line in lines:
-            print(line[1])
+            # print(line[1])
             if line[1] != "未披露" and line[1] != "向中央银行借款":
                 if re.findall('银行', line[1], re.S):
                     res.append(line)
@@ -160,7 +181,7 @@ def merge_file():
             res.append(line)
     with open("final_res.csv", 'a', newline="",encoding='utf-8') as a:
         writer = csv.writer(a)
-        headers = ['公司名称','借款银行', '借款金额','期限', '利率','余额']
+        headers = ['公司名称','借款银行', '借款金额','期限', '利率','余额','详细信息']
         writer.writerow(headers)
         for line in res:
             writer.writerow(line)
@@ -184,7 +205,7 @@ if __name__ == '__main__':
     8.res1_qx.csv 和 res2_qx.csv分别是对 res1.csv和 res2.csv进行清洗得到的，函数是 clean_final()
     9.final_res.csv为最终文件，是对res1_qx.csv 和 res2_qx.csv 合并得到
     '''
-    ##
+
     find_page()
     find_para("./good_page/","./good_para/")
     move_no_jkqx()
