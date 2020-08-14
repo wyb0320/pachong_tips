@@ -1,0 +1,34 @@
+import pdfplumber
+import pandas as pd
+from pandas import DataFrame
+pd.set_option('display.max_rows', None)
+pd.set_option('max_colwidth',5000)
+
+def extr_tb(file,first_num,last_num):
+    '''
+    file = 文件路径
+    first_num = 首页页码
+    last_num = 末页页码
+    '''
+    first_num = first_num-1
+    last_num = last_num-1
+    with pdfplumber.open(file) as pdf:
+        page = pdf.pages[first_num]   # 表格第一页
+        table = page.extract_tables()
+        print(table)
+#         for t in table:
+            # 得到的table是嵌套list类型，转化成DataFrame更加方便查看和分析
+        df0 = pd.DataFrame(table[-1])
+        
+        rest_tbs = [df0]
+        amount = last_num - first_num
+        for i in range(1,amount+1):
+            page1 = pdf.pages[first_num+i]   # 第2页的信息
+            table1 = page1.extract_tables()
+    #         print(table1)
+            df1 = pd.DataFrame(table1[0])
+            rest_tbs.append(df1)    
+        df = pd.concat(rest_tbs,axis=0,ignore_index= True)
+        df.to_excel(file[:-4]+'.xlsx')
+        return df
+extr_tb("关联交易\\中海油服：2019年年度报告.PDF",260,261)
