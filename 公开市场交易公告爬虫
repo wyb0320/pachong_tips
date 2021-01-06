@@ -1,0 +1,268 @@
+import re
+import requests
+from selenium import webdriver
+import time
+from lxml import etree
+from pandas import DataFrame
+import csv
+import pandas as pd
+
+def get_data(url):
+    # url = 'http://www.pbc.gov.cn/zhengcehuobisi/125207/125213/125431/125475/17081/index1.html'
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.3987.132 Safari/537.36'}
+    # ip = 'http://113.194.150.197:9999'
+    options = webdriver.ChromeOptions()
+    # options.add_argument('--headless')#不弹窗
+    # options.add_argument("--proxy-server="+ip)# 一定要注意，等号两边不能有空格
+    browser = webdriver.Chrome(options = options )
+    # browser.get('http://icanhazip.com/')# 测试代理ip
+    browser.get(url)
+    time.sleep(12)
+    data = browser.page_source
+    browser.quit()
+    return data
+
+def writetocsv(res,des_file):
+    with open(des_file, "a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        # headers = ['文件名称',  '发布日期', '链接'，'内容']
+        for line in res:
+            writer.writerow(line)
+    print('保存成功')
+def howmanyparts(target,path):
+    '''
+    判断单元格内容被分成了几个部分
+    '''
+    path = path
+    newpath = path.split('/p/')[0]+'/p/'+(path.split('/p/')[-1]).split('[')[0]
+#     print(newpath)
+    num = len(target.xpath(newpath))
+    print(num)
+    return num
+
+def get_inform(page,start):
+    '''
+    page：：爬取页码
+    start：该页开始的条数
+    '''
+    # 爬取信息：
+    # def get_informlists(data):
+    print('正在爬取第'+str(page)+'页')
+    data = get_data('http://www.pbc.gov.cn/zhengcehuobisi/125207/125213/125431/125475/17081/index'+str(page)+'.html')
+
+    # 1、获取['文件名称',  '发布日期', '链接']列表
+    pre = 'http://www.pbc.gov.cn'
+    data_tree = etree.HTML(data)
+    title_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/font/a/text()'   
+    href_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/font/a/@href'  # 获取名字为href的属性，一般的网址都保存在属性中
+    date_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/span/text()'
+
+    title_list = data_tree.xpath(title_path)
+    href_list = data_tree.xpath(href_path)
+    date_list = data_tree.xpath(date_path)
+
+    # 数据清洗
+    for i in range(len(href_list)):
+        href_list[i] = pre + href_list[i]
+
+    # 2、打开href爬取['内容']：
+    # for i in range(len(href_list)):
+    for i in range(start,len(href_list)):
+        print('正在打开第'+str(i)+'条')
+        href_data = get_data(href_list[i])
+        href_data_tree = etree.HTML(href_data)
+        # 文字描述
+        context_path = '//*[@id="zoom"]/p[1]/text()'
+    #                    '//*[@id="zoom"]/p[1]/span/span'
+        context = href_data_tree.xpath(context_path)
+        if context == []:
+            context_path = '//*[@id="zoom"]/p[1]/span/span/text()'
+                            
+            context = href_data_tree.xpath(context_path)
+            if context == []:
+                context_path = '//*[@id="zoom"]/p[1]/span/text()'
+                context = href_data_tree.xpath(context_path)
+                if context == []:
+                    context_path = '//*[@id="zoom"]/p[2]/text()'
+#                     //*[@id="zoom"]/p[1]
+                    context = href_data_tree.xpath(context_path)
+                    if context == []:
+                        context_path = '//*[@id="zoom"]/div/p[3]/text()'
+                        context = href_data_tree.xpath(context_path)
+                        if context == []:
+                            context_path = '//*[@id="zoom"]/p[1]/text()'
+                            context = href_data_tree.xpath(context_path)
+                            if context == []:
+                                res = []
+                                res.append([href_list[i]])
+                                writetocsv(res,'C:\\Users\\Administrator\\Desktop\\miss2.csv')
+        num = len(href_data_tree.xpath('//*[@id="zoom"]/table/tbody/tr')) # 计算表格行数
+
+    #    print(num-1) #含有流动性投放的信息
+        lie = len(href_data_tree.xpath('//*[@id="zoom"]/table/tbody/tr[1]/td')) #表格的列数
+      # 开始保存数据
+        detail = []
+
+        title = title_list[i]
+        date = date_list[i]
+        if num >= 1:
+            for a in range(2,num+1):
+                context_a = [] #用于暂时储存一行的数据
+                for b in range(1,lie+1):
+                    infor = []
+        #             try:
+                    path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span[1]/span/span/text()'
+                    z = howmanyparts(href_data_tree,path)
+                    for c in range(1,z+1):
+                        path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span['+str(c)+']/span/span/text()'
+        #                 print(path1)
+    #                     print(href_data_tree.xpath(path))
+                        if href_data_tree.xpath(path) != []:
+                            infor.append(href_data_tree.xpath(path)[0])
+
+        #             except:
+                    path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span[1]/span/text()'
+                    z = howmanyparts(href_data_tree,path)
+                    for c in range(1,z+1):
+                        path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span['+str(c)+']/span/text()'
+        #                 print(path2)
+    #                     print(href_data_tree.xpath(path))
+                        if href_data_tree.xpath(path) != []:
+                            infor.append(href_data_tree.xpath(path)[0])
+                    print('infor:',infor)
+                    context_a.append(''.join(infor))
+                context_a.append(title)
+                context_a.append(date)
+                context_a.append(href_list[i])
+        #         print(context)
+                detail.append(context+context_a)
+    #             print(detail)
+                writetocsv(detail,'C:\\Users\\Administrator\\Desktop\\data2.csv')
+        else:
+            context_b = []
+            context_b.append('')
+            context_b.append('')
+            context_b.append('')
+            context_b.append(title)
+            context_b.append(date)
+            context_b.append(href_list[i])
+            detail.append(context+context_b)
+            writetocsv(detail,'C:\\Users\\Administrator\\Desktop\\data2.csv')
+        time.sleep(1)
+def get_inform2(page,start):
+    '''
+    page：：爬取页码
+    start：该页开始的条数
+    '''
+    # 爬取信息：
+    # def get_informlists(data):
+    print('正在爬取第'+str(page)+'页')
+    data = get_data('http://www.pbc.gov.cn/zhengcehuobisi/125207/125213/125431/125475/17081/index'+str(page)+'.html')
+
+    # 1、获取['文件名称',  '发布日期', '链接']列表
+    pre = 'http://www.pbc.gov.cn'
+    data_tree = etree.HTML(data)
+    title_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/font/a/text()'   
+    href_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/font/a/@href'  # 获取名字为href的属性，一般的网址都保存在属性中
+    date_path = '//div/div/table/tbody/tr/td/table/tbody/tr/td/span/text()'
+
+    title_list = data_tree.xpath(title_path)
+    href_list = data_tree.xpath(href_path)
+    date_list = data_tree.xpath(date_path)
+
+    # 数据清洗
+    for i in range(len(href_list)): 
+        href_list[i] = pre + href_list[i]
+
+    # 2、打开href爬取['内容']：
+    # for i in range(len(href_list)):
+    for i in range(start,len(href_list)):
+        
+        if href_list[i] in misslist:
+            print('正在打开第'+str(i)+'条')
+            href_data = get_data(href_list[i])
+            href_data_tree = etree.HTML(href_data)
+            # 文字描述
+            context_path = '//*[@id="zoom"]/p[1]/text()'
+        #                    '//*[@id="zoom"]/p[1]/span/span'
+            context = href_data_tree.xpath(context_path)
+            if context == []:
+                context_path = '//*[@id="zoom"]/p[1]/span/span/text()'
+
+                context = href_data_tree.xpath(context_path)
+                if context == []:
+                    context_path = '//*[@id="zoom"]/p[1]/span/text()'
+                    context = href_data_tree.xpath(context_path)
+                    if context == []:
+                        context_path = '//*[@id="zoom"]/p[2]/text()'
+    #                     //*[@id="zoom"]/p[1]
+                        context = href_data_tree.xpath(context_path)
+                        if context == []:
+                            context_path = '//*[@id="zoom"]/div/p[3]/text()'
+                            context = href_data_tree.xpath(context_path)
+                            if context == []:
+                                context_path = '//*[@id="zoom"]/p[1]/text()'
+                                context = href_data_tree.xpath(context_path)
+                                if context == []:
+                                    res = []
+                                    res.append([href_list[i]])
+                                    writetocsv(res,'C:\\Users\\Administrator\\Desktop\\miss5.csv')
+            num = len(href_data_tree.xpath('//*[@id="zoom"]/table/tbody/tr')) # 计算表格行数
+
+        #    print(num-1) #含有流动性投放的信息
+            lie = len(href_data_tree.xpath('//*[@id="zoom"]/table/tbody/tr[1]/td')) #表格的列数
+          # 开始保存数据
+            detail = []
+
+            title = title_list[i]
+            date = date_list[i]
+            if num >= 1:
+                for a in range(2,num+1):
+                    context_a = [] #用于暂时储存一行的数据
+                    for b in range(1,lie+1):
+                        infor = []
+            #             try:
+                        path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span[1]/span/span/text()'
+                        z = howmanyparts(href_data_tree,path)
+                        for c in range(1,z+1):
+                            path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span['+str(c)+']/span/span/text()'
+            #                 print(path1)
+        #                     print(href_data_tree.xpath(path))
+                            if href_data_tree.xpath(path) != []:
+                                infor.append(href_data_tree.xpath(path)[0])
+
+            #             except:
+                        path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span[1]/span/text()'
+                        z = howmanyparts(href_data_tree,path)
+                        for c in range(1,z+1):
+                            path = '//*[@id="zoom"]/table/tbody/tr[' +str(a)+ ']/td['+ str(b)+ ']/p/span['+str(c)+']/span/text()'
+            #                 print(path2)
+        #                     print(href_data_tree.xpath(path))
+                            if href_data_tree.xpath(path) != []:
+                                infor.append(href_data_tree.xpath(path)[0])
+                        print('infor:',infor)
+                        context_a.append(''.join(infor))
+                    context_a.append(title)
+                    context_a.append(date)
+                    context_a.append(href_list[i])
+            #         print(context)
+                    detail.append(context+context_a)
+        #             print(detail)
+                    writetocsv(detail,'C:\\Users\\Administrator\\Desktop\\data5.csv')
+            else:
+                context_b = []
+                context_b.append('')
+                context_b.append('')
+                context_b.append('')
+                context_b.append(title)
+                context_b.append(date)
+                context_b.append(href_list[i])
+                detail.append(context+context_b)
+                writetocsv(detail,'C:\\Users\\Administrator\\Desktop\\data5.csv')
+            time.sleep(1)            
+
+miss = pd.read_csv('C:\\Users\\Administrator\\Desktop\\miss4.csv')
+misslist = miss['miss_list'].values.tolist()            
+for i in range(8,118):
+    get_inform2(i,1)
+    time.sleep(1)
