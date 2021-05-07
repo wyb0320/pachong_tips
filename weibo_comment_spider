@@ -1,0 +1,221 @@
+# -*- coding: utf-8 -*-
+
+# 2. 数据问题：
+
+# - 我们正在追踪特斯拉、蔚来、小鹏和理想的销售
+
+# - 在微博或抖音（二选一）用爬虫方式分析四家电动汽车的用户追踪数和讨论热度
+
+import requests
+from selenium import webdriver
+import time
+import pandas as pd
+from pandas import DataFrame,Series
+import re
+from selenium.webdriver.common.keys import Keys
+from lxml import etree
+import os
+import sys
+import csv
+import shutil
+import datetime 
+from matplotlib import pyplot as plt 
+from matplotlib.dates import date2num 
+
+class get_weibo_comment:
+
+    def __init__(self,name):
+        self._company = name
+        self._start_url = 'https://s.weibo.com/weibo/'+name+'?topnav=1&wvr=6&b=1'
+        self._start_url2 = 'https://weibo.com/nextevofficial?is_search=0&visible=0&is_all=1&is_tag=0&profile_ftype=1&page={0}#feedtop'
+        self._home_url = None
+        self._headers = {
+            ***
+        self._cookie = {
+            ***
+        }
+        self._news_url_list = []
+#         one_page_comment_num,one_page_forward_num,one_page_like_num
+        self._one_page_comment_num  = 0
+        self._one_page_forward_num  = 0
+        self._one_page_like_num  = 0
+        self._wb_comment = []
+        
+    def get_home_url(self):  #获取公司微博主页
+        headers = self._headers
+        res  = requests.get(self._start_url)
+        data = res.text
+        data_tree = etree.HTML(data)
+        self._home_url = 'https:'+data_tree.xpath('//*[@id="pl_feedlist_index"]/div[1]/div[1]/div/div[2]/div/a[1]/@href')[0]
+        print(self._home_url)
+        self._start_url2 = self._home_url+'?is_search=0&visible=0&is_all=1&is_tag=0&profile_ftype=1&page={0}#feedtop'
+        print(self._start_url2)
+
+    def get_fans_num(self,page): #解析主页，获取粉丝数量
+#         self._start_url2
+        url = self._start_url2.format(page)
+#         url ='https://weibo.com/nextevofficial?profile_ftype=1&is_all=1#_0'
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')#不弹窗
+        # options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options)
+        # url = self.url
+        browser.get(url)
+        browser.delete_all_cookies()
+        # 携带cookie打开
+        browser.add_cookie(cookie_dict=self._cookie)
+        browser.get(url)
+        browser.refresh()
+        time.sleep(5)
+        data = browser.page_source
+        browser.close()
+        data_tree = etree.HTML(data)
+        # 用户追踪数：
+        fans_num = data_tree.xpath('//*[@id="Pl_Core_T8CustomTriColumn__3"]/div/div/div/table/tbody/tr/td[2]/strong/text()')
+        print(self._company,'用户追踪数:',fans_num[0])
+    
+    def parse_home_url(self,page): #解析主页，获取粉评论分享点赞数量，并提取每一条微博的url
+#         self._start_url2
+        url = self._start_url2.format(page)
+#         url ='https://weibo.com/nextevofficial?profile_ftype=1&is_all=1#_0'
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')#不弹窗
+        # options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options)
+        # url = self.url
+        browser.get(url)
+        browser.delete_all_cookies()
+        # 携带cookie打开
+        browser.add_cookie(cookie_dict=self._cookie)
+        browser.get(url)
+        browser.refresh()
+        time.sleep(5)
+        js="var q=document.documentElement.scrollTop=100000"  #向下滑动获取更新
+        browser.execute_script(js)  
+        time.sleep(5)
+        browser.execute_script(js)  
+        time.sleep(5)
+        browser.execute_script(js)  
+        time.sleep(5)
+        browser.execute_script(js)  
+        time.sleep(5)
+        
+        data = browser.page_source
+        browser.close()
+        data_tree = etree.HTML(data)
+        
+        news_url_list =data_tree.xpath('//a[@node-type="feed_list_item_date"]/@href')
+        comment_num = data_tree.xpath('//a[@action-type="fl_comment"]/span/span/span/em[2]/text()') # 评论数
+        forward_num = data_tree.xpath('//a[@action-type="fl_forward"]/span/span/span/em[2]/text()') # 分享  
+        like_num = data_tree.xpath('//a[@action-type="fl_like"]/span/span/span/em[2]/text()') # 点赞
+    
+        one_page_comment_num = sum([int(x) for x in comment_num if x != '评论'])
+        one_page_forward_num = sum([int(x) for x in forward_num if x != '转发'])
+        one_page_like_num = sum([int(x) for x in like_num ])
+        self._news_url_list = self._news_url_list+news_url_list
+#         print(len(comment_num),len(forward_num),len(like_num))
+#         print(one_page_comment_num,one_page_forward_num,one_page_like_num)
+        
+        self._one_page_comment_num += one_page_comment_num
+        self._one_page_forward_num += one_page_forward_num
+        self._one_page_like_num += one_page_like_num
+        
+        one_page_info = [one_page_comment_num,one_page_forward_num,one_page_like_num, \
+                         self._one_page_comment_num,self._one_page_forward_num,self._one_page_like_num]
+        print(('当前页评论数量:{},当前页分享数量:{},当前页点赞数量:{},\n,累计评论数量:{},累计分享数量:{},累计点赞数量:{},')\
+              .format(one_page_comment_num,one_page_forward_num,one_page_like_num, \
+                         self._one_page_comment_num,self._one_page_forward_num,self._one_page_like_num))
+        writetocsv([one_page_info],self._company+'one_page_info.csv')
+        
+#         for i in range(len(news_url_list)):
+#             news_url_list[i] = 'https://weibo.com/'+ news_url_list[i]
+#         writetocsv([news_url_list],self._company+'news_url_list.csv')
+        
+    def parse_comment_info(self,url):  # 爬取每一条微博下方的评论，保存至txt文件
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'}
+        options = webdriver.ChromeOptions()
+#         options.add_argument('--headless')#不弹窗
+        # options.add_argument("–proxy-server="+self.ip)# 一定要注意，等号两边不能有空格
+        browser = webdriver.Chrome(options = options)
+        # url = self.url
+        browser.get(url)
+        browser.delete_all_cookies()
+        # 携带cookie打开
+        browser.add_cookie(cookie_dict=self._cookie)
+        browser.get(url)
+        browser.refresh()
+        time.sleep(5)
+        js="var q=document.documentElement.scrollTop=100000"  #向下滑动获取更新
+        browser.execute_script(js)  
+        time.sleep(5)
+        browser.execute_script(js)  
+        time.sleep(3)
+        browser.execute_script(js)
+        time.sleep(3)
+        browser.execute_script(js)
+        time.sleep(3)
+        browser.execute_script(js)  
+        time.sleep(3)
+        
+#       不断查看更多：
+        while True:
+            try:
+                browser.find_element_by_xpath('//span[@class="more_txt"]').click()
+                browser.execute_script(js)
+                time.sleep(5)
+            except:
+                break
+
+        data = browser.page_source
+        browser.close()
+        # print(data)
+        data_tree = etree.HTML(data)
+        wb_text = data_tree.xpath('//div[@class="WB_text"]/text()')
+        one_wb_comment = ''.join(wb_text)
+        one_wb_comment = one_wb_comment.replace(' ','')
+        one_wb_comment = one_wb_comment.replace('\n','')
+        self._wb_comment.append(one_wb_comment)
+        if len(one_wb_comment) > 0:
+            with open(self._company+"comment.txt","a",encoding='utf-8') as f:
+                f.write(one_wb_comment) 
+    
+    def run_data_collect(self): # 运行parse_home_url
+        self.get_home_url()
+#         self.parse_home_url()
+        for page in range(1,23):
+            print('第{}页'.format(page))
+            self.parse_home_url(page)
+            
+    def run_comment_parse(self): # 运行parse_comment_info
+        
+        # 由于之前将微博url保存为csv文件（应该用txt文件更好），此处手动将其复制到下方进行简单的格式转换后方可使用
+        news_url_list = \
+'''
+***
+'''
+        news_url_list = re.split(r"[\n,]",news_url_list)
+        
+        for j in range(52,len(news_url_list)):
+            if len(news_url_list[j])>5:
+                print('第{}条'.format(j))
+                self.parse_comment_info(news_url_list[j])
+                
+#         writetocsv([self._wb_comment],self._company+'comment.csv')
+
+# 写入csv
+def writetocsv(res,des_file):
+    with open(des_file, "a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        # headers = ['company_name',  'one_page_comment_num', 'one_page_forward_num','one_page_like_num']
+        for line in res:
+            writer.writerow(line)
+    print('保存成功')
+    
+if __name__ == '__main__':
+    wl = get_weibo_comment('特斯拉')
+#     wl.get_home_url()
+#     wl.parse_home_url(1)
+    wl.run_data_collect()
