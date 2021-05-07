@@ -117,7 +117,7 @@ class get_weibo_comment:
         self._news_url_list = self._news_url_list+news_url_list
 #         print(len(comment_num),len(forward_num),len(like_num))
 #         print(one_page_comment_num,one_page_forward_num,one_page_like_num)
-        
+         
         self._one_page_comment_num += one_page_comment_num
         self._one_page_forward_num += one_page_forward_num
         self._one_page_like_num += one_page_like_num
